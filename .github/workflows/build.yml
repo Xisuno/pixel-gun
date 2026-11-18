@@ -4,10 +4,10 @@ on:
   push:
     branches: [ main, master ]
     paths:
-      - 'Sources/**'
-      - 'Makefile'
-      - 'control'
-      - 'layout/**'
+      - 'pg3d_tweak/Sources/**'
+      - 'pg3d_tweak/Makefile'
+      - 'pg3d_tweak/control'
+      - 'pg3d_tweak/layout/**'
   workflow_dispatch:
     inputs:
       finalpackage:
@@ -45,10 +45,8 @@ jobs:
           git clone --recursive --depth=1 \
             https://github.com/theos/theos.git "$THEOS"
 
-      # ── 4. Linux toolchain ────────────────────────────────────────────────────
-      # sbingner/llvm-project is the standard arm64e cross-compiler for Theos on Linux.
-      # Latest release resolves via /releases/latest redirect to v10.0.0-2.
-      - name: Install Theos toolchain (sbingner llvm)
+      # ── 4. Linux toolchain (sbingner llvm — arm64e cross-compiler) ────────────
+      - name: Install Theos toolchain
         run: |
           TOOLCHAIN_URL="https://github.com/sbingner/llvm-project/releases/latest/download/linux-ios-arm64e-clang-toolchain.tar.lzma"
           curl -fL "$TOOLCHAIN_URL" -o toolchain.tar.lzma
@@ -57,11 +55,9 @@ jobs:
               -C "$THEOS/toolchain/linux/iphone"
           rm toolchain.tar.lzma
           echo "$THEOS/toolchain/linux/iphone/bin" >> "$GITHUB_PATH"
-          # Verify clang is present
           ls "$THEOS/toolchain/linux/iphone/bin/" | grep clang
 
       # ── 5. iOS 16.5 SDK ───────────────────────────────────────────────────────
-      # Makefile: TARGET := iphone:clang:16.5:14.0
       - name: Download iOS 16.5 SDK
         run: |
           SDK_URL="https://github.com/theos/sdks/releases/download/master-146e41f/iPhoneOS16.5.sdk.tar.xz"
@@ -69,13 +65,16 @@ jobs:
           curl -fL "$SDK_URL" -o sdk.tar.xz
           tar -xf sdk.tar.xz -C "$THEOS/sdks/"
           rm sdk.tar.xz
-          echo "=== Available SDKs ==="
           ls "$THEOS/sdks/"
 
       # ── 6. Build ──────────────────────────────────────────────────────────────
+      # Makefile and Sources/ live inside pg3d_tweak/ — must cd there first.
+      # THEOS_PROJECT_DIR is set by Theos to CWD at make time, so relative
+      # paths in _FILES (Sources/PG3DCheat/...) resolve correctly from there.
       - name: Build .deb package
         run: |
           FINAL=$( [ "${{ github.event.inputs.finalpackage }}" = "false" ] && echo "0" || echo "1" )
+          cd "${{ github.workspace }}/pg3d_tweak"
           make package \
             FINALPACKAGE=$FINAL \
             THEOS_PACKAGE_SCHEME=rootless \
@@ -84,20 +83,19 @@ jobs:
       # ── 7. Verify output ──────────────────────────────────────────────────────
       - name: Verify .deb produced
         run: |
-          echo "=== packages/ ==="
-          ls -lh packages/
-          DEB=$(find packages/ -name '*.deb' | head -1)
+          ls -lh "${{ github.workspace }}/pg3d_tweak/packages/"
+          DEB=$(find "${{ github.workspace }}/pg3d_tweak/packages/" -name '*.deb' | head -1)
           if [ -z "$DEB" ]; then
-            echo "ERROR: no .deb found in packages/"
+            echo "ERROR: no .deb found"
             exit 1
           fi
           dpkg-deb --info "$DEB"
 
-      # ── 8. Upload artifact (external — not committed to repo) ─────────────────
+      # ── 8. Upload artifact ────────────────────────────────────────────────────
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
           name: pg3d-cheat-${{ github.run_number }}-deb
-          path: packages/*.deb
+          path: pg3d_tweak/packages/*.deb
           if-no-files-found: error
           retention-days: 30
