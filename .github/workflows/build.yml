@@ -40,15 +40,17 @@ jobs:
           grep "include.*tweak.mk" "$PROJECT_ROOT/Makefile"
 
       # 3. Set up Theos
+            # 3. Set up Theos
       - name: Set up Theos
         env:
           THEOS: ${{ github.workspace }}/theos
         run: |
           git clone --recursive https://github.com/theos/theos.git "$THEOS"
+          git clone --depth=1 --filter=blob:none --sparse https://github.com/theos/sdks.git "$RUNNER_TEMP/sdks"
+          git -C "$RUNNER_TEMP/sdks" sparse-checkout set iPhoneOS16.5.sdk
           mkdir -p "$THEOS/sdks"
-          curl -LO https://github.com/theos/sdks/releases/download/main/iPhoneOS16.5.sdk.tar.xz
-          tar -xf iPhoneOS16.5.sdk.tar.xz -C "$THEOS/sdks/"
-          rm iPhoneOS16.5.sdk.tar.xz
+          cp -R "$RUNNER_TEMP/sdks/iPhoneOS16.5.sdk" "$THEOS/sdks/"
+          ls "$THEOS/sdks"
 
       # 4. Build .deb
       - name: Build tweak
