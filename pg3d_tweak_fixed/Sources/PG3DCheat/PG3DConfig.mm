@@ -161,13 +161,23 @@ typedef void (^FloatSetter)(float);
                 y:(CGFloat)y
            toView:(UIView*)parent
                 W:(CGFloat)W {
-    UILabel* lbl = [self labelWithText:label
-                                  font:[UIFont systemFontOfSize:13]
-                                 frame:CGRectMake(14, y+8, W-80, 20)];
-    UISwitch* sw = [[UISwitch alloc] initWithFrame:CGRectMake(W-70, y+6, 51, 31)];
-    sw.on = getter();
-    sw.onTintColor = [UIColor colorWithRed:0.2 green:0.6 blue:1.0 alpha:1.0];
-    sw.transform = CGAffineTransformMakeScale(0.8, 0.8);
+    // ... create lbl and sw ...
+
+    objc_setAssociatedObject(sw, kSetterKey, setter, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    [sw addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
+
+    [parent addSubview:lbl];
+    [parent addSubview:sw];
+}   // <-- this closing brace must be here
+
+- (void)switchChanged:(UISwitch*)sw {
+    BoolSetter cb = objc_getAssociatedObject(sw, kSetterKey);
+    if (cb) cb(sw.isOn);
+}
+
+- (void)addSlider:(NSString*)label
+              min:(float)minVal max:(float)maxVal step:(float)step
+           ...
 
     // Use a block callback via objc associated objects
 objc_setAssociatedObject(sw, kSetterKey, setter, OBJC_ASSOCIATION_COPY_NONATOMIC);
