@@ -155,8 +155,6 @@ typedef void (^BoolSetter)(BOOL);
 typedef float (^FloatGetter)(void);
 typedef void (^FloatSetter)(float);
 
-static const void *kSetterKey = &kSetterKey;
-
 - (void)addToggle:(NSString*)label
            getter:(BoolGetter)getter
            setter:(BoolSetter)setter
