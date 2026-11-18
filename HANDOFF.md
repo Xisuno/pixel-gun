@@ -70,6 +70,34 @@ bypasses de anticheat estão funcionando, e consertar se não estiverem."
     original dump was taken from. That build identifier isn't recorded
     anywhere in this repo — it needs to come from you or from re-dumping.
 
+## ROOT CAUSE FOUND AND FIXED (2026-11-18): wrong architecture
+
+After ruling out, with actual on-device evidence (not guesswork): bundle id
+(`CFBundleIdentifier` confirmed via `strings` on the real `Info.plist` =
+exactly `zombiegun3d`, matching both `PG3DCheat.plist` and
+`PG3DCheat_BUNDLE_ID` in the Makefile), file placement/permissions
+(`PG3DCheat.dylib` and `PG3DCheat.plist` both present in
+`/var/jb/Library/MobileSubstrate/DynamicLibraries/`, owned `root:wheel`,
+`755`/`644` — correct), and a confirmed rebuild+reinstall of the current
+source — the always-on diagnostic marker still never appeared. That ruled
+out everything in the source logic itself, since the marker has zero
+dependency on anything past "the dylib got loaded."
+
+`lipo -info` on the installed game binary
+(`/var/containers/Bundle/Application/<UUID>/zombiegun3d.app/zombiegun3d`)
+confirmed: **architecture is arm64 only — no arm64e slice.** The
+`Makefile` was building `PG3DCheat.dylib` as `arm64e` only
+(`ARCHS := arm64e`). An arm64e-only dylib cannot be injected into an
+arm64-only process: dyld refuses the architecture mismatch, and it is a
+**completely silent failure** — no crash, no log line, nothing — because the
+dylib's code never runs at all; dyld rejects it before a single instruction
+executes. That is exactly why nothing ever showed, including the UI marker
+that doesn't depend on il2cpp/base resolution at all.
+
+**Fixed:** `Makefile` now builds `ARCHS := arm64` to match the actual target
+process. Nothing else needed to change — no arm64e-specific code (pointer
+authentication intrinsics, etc.) was present anywhere in the source.
+
 ## CI incident (2026-11-18, fixed)
 
 The first delivery of this zip included `.github/workflows/` copied from
