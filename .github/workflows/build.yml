@@ -22,7 +22,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-15
 
     steps:
       # ── 1. Sources ────────────────────────────────────────────────────────────
@@ -53,13 +53,15 @@ jobs:
           echo "Found: $PROJECT_ROOT/Makefile"
           grep "include.*tweak.mk" "$PROJECT_ROOT/Makefile"
 
-      # ── 3. System dependencies ────────────────────────────────────────────────
+      # ── 3. System dependencies (Homebrew) ─────────────────────────────────────
+      # ldid  → fake-signing of the dylib (required by Theos)
+      # dpkg  → dpkg-deb for packaging and --info verification
+      # make  → GNU make 4.x (macOS ships 3.81); exposed as `make` via gnubin
       - name: Install system packages
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            curl git make perl rsync zip unzip xz-utils \
-            libplist-utils fakeroot dpkg
+          brew update
+          brew install ldid dpkg make xz
+          echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
 
       # ── 4. Theos core ─────────────────────────────────────────────────────────
       - name: Clone Theos
@@ -67,23 +69,13 @@ jobs:
           git clone --recursive --depth=1 \
             https://github.com/theos/theos.git "$THEOS"
 
-      # ── 5. Linux toolchain (sbingner llvm — arm64e) ───────────────────────────
-      - name: Install Theos toolchain
+      # ── 5. Toolchain ──────────────────────────────────────────────────────────
+      # On macOS Theos uses the Xcode clang directly — no Linux toolchain needed.
+      - name: Check Xcode toolchain
         run: |
-          TOOLCHAIN_URL="https://github.com/sbingner/llvm-project/releases/latest/download/linux-ios-arm64e-clang-toolchain.tar.lzma"
-          curl -fL "$TOOLCHAIN_URL" -o toolchain.tar.lzma
-          mkdir -p "$THEOS/toolchain/linux/iphone"
-          tar -xf toolchain.tar.lzma --strip-components=1 \
-              -C "$THEOS/toolchain/linux/iphone"
-          rm toolchain.tar.lzma
-          echo "$THEOS/toolchain/linux/iphone/bin" >> "$GITHUB_PATH"
-          # libtinfo.so.5 was dropped in Ubuntu 22+; sbingner clang-10 needs it.
-          # libtinfo.so.6 is ABI-compatible for all symbols LLVM 10 uses.
-          if [ ! -f /usr/lib/x86_64-linux-gnu/libtinfo.so.5 ]; then
-            sudo ln -s /usr/lib/x86_64-linux-gnu/libtinfo.so.6 \
-                       /usr/lib/x86_64-linux-gnu/libtinfo.so.5
-          fi
-          ls "$THEOS/toolchain/linux/iphone/bin/" | grep clang
+          xcode-select -p
+          clang --version
+          make --version | head -1
 
       # ── 6. iOS 16.5 SDK ───────────────────────────────────────────────────────
       - name: Download iOS 16.5 SDK
@@ -103,7 +95,7 @@ jobs:
           make package \
             FINALPACKAGE=$FINAL \
             THEOS_PACKAGE_SCHEME=rootless \
-            -j$(nproc)
+            -j$(sysctl -n hw.ncpu)
 
       # ── 8. Verify output ──────────────────────────────────────────────────────
       - name: Verify .deb produced
