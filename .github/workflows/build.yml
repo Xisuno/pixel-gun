@@ -1,0 +1,105 @@
+name: Build PG3D Cheat — DEB
+
+# Triggers: push to main/master, or manual dispatch.
+# The compiled .deb is uploaded as a workflow artifact (external to the repo tree).
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'Sources/**'
+      - 'Makefile'
+      - 'control'
+      - 'layout/**'
+  workflow_dispatch:
+    inputs:
+      finalpackage:
+        description: 'Set FINALPACKAGE=1 (strips debug symbols, production build)'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+env:
+  THEOS: ${{ github.workspace }}/theos
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Sources ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ── 2. System dependencies ───────────────────────────────────────────────
+      - name: Install system packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            curl git make perl rsync zip unzip \
+            libplist-utils fakeroot dpkg
+
+      # ── 3. Theos core ────────────────────────────────────────────────────────
+      # Official Theos — shallow clone is enough for CI
+      - name: Clone Theos
+        run: |
+          git clone --recursive --depth=1 \
+            https://github.com/theos/theos.git "$THEOS"
+
+      # ── 4. Linux toolchain (Clang/LLVM cross-compiler for arm64e) ────────────
+      # kabiroberai/swift-toolchain-linux provides the same LLVM/Clang build
+      # that Theos CI officially recommends; it includes ld64/cctools for arm64e.
+      - name: Install Theos toolchain
+        run: |
+          TOOLCHAIN_URL="https://github.com/kabiroberai/swift-toolchain-linux/releases/latest/download/toolchain-linux.tar.gz"
+          curl -fL "$TOOLCHAIN_URL" -o toolchain.tar.gz
+          mkdir -p "$THEOS/toolchain/linux/iphone"
+          tar -xf toolchain.tar.gz --strip-components=1 \
+              -C "$THEOS/toolchain/linux/iphone"
+          rm toolchain.tar.gz
+          echo "$THEOS/toolchain/linux/iphone/bin" >> "$GITHUB_PATH"
+
+      # ── 5. iOS SDK ───────────────────────────────────────────────────────────
+      # Makefile targets iphone:clang:16.5:14.0 — fetch matching SDK.
+      - name: Download iOS 16.5 SDK
+        run: |
+          SDK_URL="https://github.com/theos/sdks/releases/download/main/iPhoneOS16.5.sdk.tar.xz"
+          mkdir -p "$THEOS/sdks"
+          curl -fL "$SDK_URL" -o sdk.tar.xz
+          tar -xf sdk.tar.xz -C "$THEOS/sdks/"
+          rm sdk.tar.xz
+          echo "=== Available SDKs ==="
+          ls "$THEOS/sdks/"
+
+      # ── 6. Build ─────────────────────────────────────────────────────────────
+      - name: Build .deb package
+        run: |
+          FINAL=$( [ "${{ github.event.inputs.finalpackage }}" = "false" ] && echo "0" || echo "1" )
+          make package \
+            FINALPACKAGE=$FINAL \
+            THEOS_PACKAGE_SCHEME=rootless \
+            -j$(nproc)
+
+      # ── 7. Verify output ─────────────────────────────────────────────────────
+      - name: Verify .deb produced
+        run: |
+          echo "=== packages/ ==="
+          ls -lh packages/
+          DEB=$(find packages/ -name '*.deb' | head -1)
+          if [ -z "$DEB" ]; then
+            echo "ERROR: no .deb found in packages/"
+            exit 1
+          fi
+          echo "DEB=$DEB" >> "$GITHUB_ENV"
+          dpkg-deb --info "$DEB"
+
+      # ── 8. Upload artifact (external — not committed to repo) ─────────────────
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg3d-cheat-${{ github.run_number }}-deb
+          path: packages/*.deb
+          if-no-files-found: error
+          retention-days: 30
