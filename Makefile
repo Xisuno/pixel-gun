@@ -22,7 +22,7 @@ PG3DCheat_FRAMEWORKS := UIKit CoreGraphics Foundation
 PG3DCheat_LDFLAGS += -Wl,-undefined,dynamic_lookup
 
 # Bundle ID of Pixel Gun 3D — tweak only injects into this process
-PG3DCheat_BUNDLE_ID := com.rilisoft.pixelgun3d
+PG3DCheat_BUNDLE_ID := zombiegun3d
 
 include $(THEOS)/makefiles/tweak.mk
 
