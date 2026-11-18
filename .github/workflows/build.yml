@@ -1,0 +1,111 @@
+name: Build PG3D Cheat — DEB
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'pg3d_tweak/Sources/**'
+      - 'pg3d_tweak/Makefile'
+      - 'pg3d_tweak/control'
+      - 'pg3d_tweak/layout/**'
+  workflow_dispatch:
+    inputs:
+      finalpackage:
+        description: 'FINALPACKAGE (strips debug symbols)'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+env:
+  THEOS: ${{ github.workspace }}/theos
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Sources ────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ── 2. Sanity check — confirm Makefile is at expected path ────────────────
+      - name: Verify project structure
+        run: |
+          if [ ! -f "${{ github.workspace }}/pg3d_tweak/Makefile" ]; then
+            echo "ERROR: pg3d_tweak/Makefile not found."
+            echo "Repo tree (3 levels):"
+            find "${{ github.workspace }}" -maxdepth 3 \
+              -not -path '*/.git/*' -not -path '*/theos/*' | sort
+            exit 1
+          fi
+          echo "OK: pg3d_tweak/Makefile present"
+          grep "include.*tweak.mk" "${{ github.workspace }}/pg3d_tweak/Makefile"
+
+      # ── 3. System dependencies ────────────────────────────────────────────────
+      - name: Install system packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            curl git make perl rsync zip unzip xz-utils \
+            libplist-utils fakeroot dpkg
+
+      # ── 4. Theos core ─────────────────────────────────────────────────────────
+      - name: Clone Theos
+        run: |
+          git clone --recursive --depth=1 \
+            https://github.com/theos/theos.git "$THEOS"
+
+      # ── 5. Linux toolchain (sbingner llvm — arm64e) ───────────────────────────
+      - name: Install Theos toolchain
+        run: |
+          TOOLCHAIN_URL="https://github.com/sbingner/llvm-project/releases/latest/download/linux-ios-arm64e-clang-toolchain.tar.lzma"
+          curl -fL "$TOOLCHAIN_URL" -o toolchain.tar.lzma
+          mkdir -p "$THEOS/toolchain/linux/iphone"
+          tar -xf toolchain.tar.lzma --strip-components=1 \
+              -C "$THEOS/toolchain/linux/iphone"
+          rm toolchain.tar.lzma
+          echo "$THEOS/toolchain/linux/iphone/bin" >> "$GITHUB_PATH"
+          ls "$THEOS/toolchain/linux/iphone/bin/" | grep clang
+
+      # ── 6. iOS 16.5 SDK ───────────────────────────────────────────────────────
+      - name: Download iOS 16.5 SDK
+        run: |
+          SDK_URL="https://github.com/theos/sdks/releases/download/master-146e41f/iPhoneOS16.5.sdk.tar.xz"
+          mkdir -p "$THEOS/sdks"
+          curl -fL "$SDK_URL" -o sdk.tar.xz
+          tar -xf sdk.tar.xz -C "$THEOS/sdks/"
+          rm sdk.tar.xz
+          ls "$THEOS/sdks/"
+
+      # ── 7. Build ──────────────────────────────────────────────────────────────
+      - name: Build .deb package
+        run: |
+          FINAL=$( [ "${{ github.event.inputs.finalpackage }}" = "false" ] && echo "0" || echo "1" )
+          cd "${{ github.workspace }}/pg3d_tweak"
+          make package \
+            FINALPACKAGE=$FINAL \
+            THEOS_PACKAGE_SCHEME=rootless \
+            -j$(nproc)
+
+      # ── 8. Verify output ──────────────────────────────────────────────────────
+      - name: Verify .deb produced
+        run: |
+          ls -lh "${{ github.workspace }}/pg3d_tweak/packages/"
+          DEB=$(find "${{ github.workspace }}/pg3d_tweak/packages/" -name '*.deb' | head -1)
+          if [ -z "$DEB" ]; then
+            echo "ERROR: no .deb found"
+            exit 1
+          fi
+          dpkg-deb --info "$DEB"
+
+      # ── 9. Upload artifact ────────────────────────────────────────────────────
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg3d-cheat-${{ github.run_number }}-deb
+          path: pg3d_tweak/packages/*.deb
+          if-no-files-found: error
+          retention-days: 30
