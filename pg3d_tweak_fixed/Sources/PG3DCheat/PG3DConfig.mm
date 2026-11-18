@@ -1,5 +1,6 @@
 #import "PG3DConfig.h"
 #import <objc/runtime.h>
+static const void *kSetterKey = &kSetterKey;
 
 static PG3DConfig* s_instance = nil;
 
@@ -169,17 +170,14 @@ typedef void (^FloatSetter)(float);
     sw.transform = CGAffineTransformMakeScale(0.8, 0.8);
 
     // Use a block callback via objc associated objects
-    objc_setAssociatedObject(sw, "setter", setter, OBJC_ASSOCIATION_COPY_NONATOMIC);
-    [sw addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
+objc_setAssociatedObject(sw, kSetterKey, setter, OBJC_ASSOCIATION_COPY_NONATOMIC);
+[sw addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
 
-    [parent addSubview:lbl];
-    [parent addSubview:sw];
-}
+[parent addSubview:lbl];
+[parent addSubview:sw];
 
-- (void)switchChanged:(UISwitch*)sw {
-    BoolSetter setter = objc_getAssociatedObject(sw, "setter");
-    if (setter) setter(sw.on);
-}
+BoolSetter setter = objc_getAssociatedObject(sw, kSetterKey);
+if (setter) setter(sw.isOn);
 
 - (void)addSlider:(NSString*)label
               min:(float)minVal max:(float)maxVal step:(float)step
