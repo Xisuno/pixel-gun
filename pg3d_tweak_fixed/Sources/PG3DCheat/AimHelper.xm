@@ -1,12 +1,4 @@
-/*
- * AimHelper.xm  (renamed from .mm — Logos directives require .x/.xm)
- *
- * Aim assist strategy for Pixel Gun 3D (touchscreen iOS):
- *   - PG3D uses virtual joystick for look (right half of screen).
- *   - Aim assist works by injecting a synthetic touch-delta toward the
- *     target's screen projection.
- *   - For AimLock (snap): immediately centre crosshair on target.
- *   - For AimAssist (pull): apply a fractional pull each frame.
+
  *
  * WorldToScreen:
  *   We need Camera.main.WorldToScreenPoint(). We obtain it via:
