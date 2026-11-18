@@ -77,6 +77,12 @@ jobs:
               -C "$THEOS/toolchain/linux/iphone"
           rm toolchain.tar.lzma
           echo "$THEOS/toolchain/linux/iphone/bin" >> "$GITHUB_PATH"
+          # libtinfo.so.5 was dropped in Ubuntu 22+; sbingner clang-10 needs it.
+          # libtinfo.so.6 is ABI-compatible for all symbols LLVM 10 uses.
+          if [ ! -f /usr/lib/x86_64-linux-gnu/libtinfo.so.5 ]; then
+            sudo ln -s /usr/lib/x86_64-linux-gnu/libtinfo.so.6 \
+                       /usr/lib/x86_64-linux-gnu/libtinfo.so.5
+          fi
           ls "$THEOS/toolchain/linux/iphone/bin/" | grep clang
 
       # ── 6. iOS 16.5 SDK ───────────────────────────────────────────────────────
