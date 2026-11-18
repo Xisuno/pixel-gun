@@ -15,6 +15,7 @@ PG3DCheat_FILES := \
 
 PG3DCheat_CFLAGS  := -fobjc-arc -I$(THEOS_PROJECT_DIR)/Sources/PG3DCheat
 PG3DCheat_CCFLAGS := -fobjc-arc -std=c++17 -I$(THEOS_PROJECT_DIR)/Sources/PG3DCheat
+PG3DCheat_CFLAGS  += -Wno-error -Wno-unused-variable
 
 PG3DCheat_FRAMEWORKS := UIKit CoreGraphics Foundation
 
