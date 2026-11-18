@@ -184,14 +184,6 @@ static const void *kSetterKey = &kSetterKey;
 }
 
     // Use a block callback via objc associated objects
-objc_setAssociatedObject(sw, kSetterKey, setter, OBJC_ASSOCIATION_COPY_NONATOMIC);
-[sw addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
-
-[parent addSubview:lbl];
-[parent addSubview:sw];
-
-BoolSetter setter = objc_getAssociatedObject(sw, kSetterKey);
-if (setter) setter(sw.isOn);
 
 - (void)addSlider:(NSString*)label
               min:(float)minVal max:(float)maxVal step:(float)step
