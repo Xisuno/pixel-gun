@@ -4,10 +4,10 @@ on:
   push:
     branches: [ main, master ]
     paths:
-      - 'pg3d_tweak/Sources/**'
-      - 'pg3d_tweak/Makefile'
-      - 'pg3d_tweak/control'
-      - 'pg3d_tweak/layout/**'
+      - 'pg3d_tweak/**/Sources/**'
+      - 'pg3d_tweak/**/Makefile'
+      - 'pg3d_tweak/**/control'
+      - 'pg3d_tweak/**/layout/**'
   workflow_dispatch:
     inputs:
       finalpackage:
@@ -31,18 +31,27 @@ jobs:
         with:
           fetch-depth: 1
 
-      # ── 2. Sanity check — confirm Makefile is at expected path ────────────────
-      - name: Verify project structure
+      # ── 2. Locate Makefile — handle both flat and double-nested layouts ────────
+      # Expected clean layout:  pg3d_tweak/Makefile
+      # Legacy double-nested:   pg3d_tweak/pg3d_tweak/Makefile
+      - name: Locate project root
+        id: project
         run: |
-          if [ ! -f "${{ github.workspace }}/pg3d_tweak/Makefile" ]; then
-            echo "ERROR: pg3d_tweak/Makefile not found."
-            echo "Repo tree (3 levels):"
-            find "${{ github.workspace }}" -maxdepth 3 \
-              -not -path '*/.git/*' -not -path '*/theos/*' | sort
+          WORKSPACE="${{ github.workspace }}"
+          if [ -f "$WORKSPACE/pg3d_tweak/Makefile" ]; then
+            PROJECT_ROOT="$WORKSPACE/pg3d_tweak"
+          elif [ -f "$WORKSPACE/pg3d_tweak/pg3d_tweak/Makefile" ]; then
+            PROJECT_ROOT="$WORKSPACE/pg3d_tweak/pg3d_tweak"
+            echo "::warning::Double-nested layout detected (pg3d_tweak/pg3d_tweak/)."
+            echo "::warning::Re-run the unzip workflow with destination=. to fix the repo structure."
+          else
+            echo "ERROR: Makefile not found. Repo tree:"
+            find "$WORKSPACE" -maxdepth 4 -not -path '*/.git/*' -not -path '*/theos/*' | sort
             exit 1
           fi
-          echo "OK: pg3d_tweak/Makefile present"
-          grep "include.*tweak.mk" "${{ github.workspace }}/pg3d_tweak/Makefile"
+          echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_OUTPUT"
+          echo "Found: $PROJECT_ROOT/Makefile"
+          grep "include.*tweak.mk" "$PROJECT_ROOT/Makefile"
 
       # ── 3. System dependencies ────────────────────────────────────────────────
       - name: Install system packages
@@ -84,7 +93,7 @@ jobs:
       - name: Build .deb package
         run: |
           FINAL=$( [ "${{ github.event.inputs.finalpackage }}" = "false" ] && echo "0" || echo "1" )
-          cd "${{ github.workspace }}/pg3d_tweak"
+          cd "${{ steps.project.outputs.PROJECT_ROOT }}"
           make package \
             FINALPACKAGE=$FINAL \
             THEOS_PACKAGE_SCHEME=rootless \
@@ -93,8 +102,9 @@ jobs:
       # ── 8. Verify output ──────────────────────────────────────────────────────
       - name: Verify .deb produced
         run: |
-          ls -lh "${{ github.workspace }}/pg3d_tweak/packages/"
-          DEB=$(find "${{ github.workspace }}/pg3d_tweak/packages/" -name '*.deb' | head -1)
+          PKGDIR="${{ steps.project.outputs.PROJECT_ROOT }}/packages"
+          ls -lh "$PKGDIR"
+          DEB=$(find "$PKGDIR" -name '*.deb' | head -1)
           if [ -z "$DEB" ]; then
             echo "ERROR: no .deb found"
             exit 1
@@ -106,6 +116,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pg3d-cheat-${{ github.run_number }}-deb
-          path: pg3d_tweak/packages/*.deb
+          path: ${{ steps.project.outputs.PROJECT_ROOT }}/packages/*.deb
           if-no-files-found: error
           retention-days: 30
