@@ -1,8 +1,0 @@
-Package: com.mc1h.pg3dcheat
-Name: PG3D Cheat
-Version: 1.0.0
-Architecture: iphoneos-arm64
-Description: Pixel Gun 3D — AimAssist, AimLock, ESP (mc1h build)
-Maintainer: mc1h
-Section: Tweaks
-Depends: mobilesubstrate, preferenceloader
