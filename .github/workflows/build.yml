@@ -1,7 +1,5 @@
 name: Build PG3D Cheat — DEB
 
-# Triggers: push to main/master, or manual dispatch.
-# The compiled .deb is uploaded as a workflow artifact (external to the repo tree).
 on:
   push:
     branches: [ main, master ]
@@ -13,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       finalpackage:
-        description: 'Set FINALPACKAGE=1 (strips debug symbols, production build)'
+        description: 'FINALPACKAGE (strips debug symbols)'
         required: false
         default: 'true'
         type: choice
@@ -27,42 +25,43 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Sources ──────────────────────────────────────────────────────────
+      # ── 1. Sources ────────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      # ── 2. System dependencies ───────────────────────────────────────────────
+      # ── 2. System dependencies ────────────────────────────────────────────────
       - name: Install system packages
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
-            curl git make perl rsync zip unzip \
+            curl git make perl rsync zip unzip xz-utils \
             libplist-utils fakeroot dpkg
 
-      # ── 3. Theos core ────────────────────────────────────────────────────────
-      # Official Theos — shallow clone is enough for CI
+      # ── 3. Theos core ─────────────────────────────────────────────────────────
       - name: Clone Theos
         run: |
           git clone --recursive --depth=1 \
             https://github.com/theos/theos.git "$THEOS"
 
-      # ── 4. Linux toolchain (Clang/LLVM cross-compiler for arm64e) ────────────
-      # kabiroberai/swift-toolchain-linux provides the same LLVM/Clang build
-      # that Theos CI officially recommends; it includes ld64/cctools for arm64e.
-      - name: Install Theos toolchain
+      # ── 4. Linux toolchain ────────────────────────────────────────────────────
+      # sbingner/llvm-project is the standard arm64e cross-compiler for Theos on Linux.
+      # Latest release resolves via /releases/latest redirect to v10.0.0-2.
+      - name: Install Theos toolchain (sbingner llvm)
         run: |
-          TOOLCHAIN_URL="https://github.com/kabiroberai/swift-toolchain-linux/releases/latest/download/toolchain-linux.tar.gz"
-          curl -fL "$TOOLCHAIN_URL" -o toolchain.tar.gz
+          TOOLCHAIN_URL="https://github.com/sbingner/llvm-project/releases/latest/download/linux-ios-arm64e-clang-toolchain.tar.lzma"
+          curl -fL "$TOOLCHAIN_URL" -o toolchain.tar.lzma
           mkdir -p "$THEOS/toolchain/linux/iphone"
-          tar -xf toolchain.tar.gz --strip-components=1 \
+          tar -xf toolchain.tar.lzma --strip-components=1 \
               -C "$THEOS/toolchain/linux/iphone"
-          rm toolchain.tar.gz
+          rm toolchain.tar.lzma
           echo "$THEOS/toolchain/linux/iphone/bin" >> "$GITHUB_PATH"
+          # Verify clang is present
+          ls "$THEOS/toolchain/linux/iphone/bin/" | grep clang
 
-      # ── 5. iOS SDK ───────────────────────────────────────────────────────────
-      # Makefile targets iphone:clang:16.5:14.0 — fetch matching SDK.
+      # ── 5. iOS 16.5 SDK ───────────────────────────────────────────────────────
+      # Makefile: TARGET := iphone:clang:16.5:14.0
       - name: Download iOS 16.5 SDK
         run: |
           SDK_URL="https://github.com/theos/sdks/releases/download/main/iPhoneOS16.5.sdk.tar.xz"
@@ -73,7 +72,7 @@ jobs:
           echo "=== Available SDKs ==="
           ls "$THEOS/sdks/"
 
-      # ── 6. Build ─────────────────────────────────────────────────────────────
+      # ── 6. Build ──────────────────────────────────────────────────────────────
       - name: Build .deb package
         run: |
           FINAL=$( [ "${{ github.event.inputs.finalpackage }}" = "false" ] && echo "0" || echo "1" )
@@ -82,7 +81,7 @@ jobs:
             THEOS_PACKAGE_SCHEME=rootless \
             -j$(nproc)
 
-      # ── 7. Verify output ─────────────────────────────────────────────────────
+      # ── 7. Verify output ──────────────────────────────────────────────────────
       - name: Verify .deb produced
         run: |
           echo "=== packages/ ==="
@@ -92,7 +91,6 @@ jobs:
             echo "ERROR: no .deb found in packages/"
             exit 1
           fi
-          echo "DEB=$DEB" >> "$GITHUB_ENV"
           dpkg-deb --info "$DEB"
 
       # ── 8. Upload artifact (external — not committed to repo) ─────────────────
