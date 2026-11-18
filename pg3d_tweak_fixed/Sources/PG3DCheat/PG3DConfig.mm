@@ -1,4 +1,5 @@
 #import "PG3DConfig.h"
+#import <objc/runtime.h>
 
 static PG3DConfig* s_instance = nil;
 
