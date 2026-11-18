@@ -155,29 +155,33 @@ typedef void (^BoolSetter)(BOOL);
 typedef float (^FloatGetter)(void);
 typedef void (^FloatSetter)(float);
 
+static const void *kSetterKey = &kSetterKey;
+
 - (void)addToggle:(NSString*)label
            getter:(BoolGetter)getter
            setter:(BoolSetter)setter
                 y:(CGFloat)y
            toView:(UIView*)parent
                 W:(CGFloat)W {
-    // ... create lbl and sw ...
+    UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(12, y, W - 90, 31)];
+    lbl.text = label;
+    lbl.textColor = UIColor.whiteColor;
+    lbl.font = [UIFont systemFontOfSize:14];
+
+    UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectMake(W - 64, y, 51, 31)];
+    sw.on = getter ? getter() : NO;
 
     objc_setAssociatedObject(sw, kSetterKey, setter, OBJC_ASSOCIATION_COPY_NONATOMIC);
     [sw addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
 
     [parent addSubview:lbl];
     [parent addSubview:sw];
-}   // <-- this closing brace must be here
+}
 
 - (void)switchChanged:(UISwitch*)sw {
     BoolSetter cb = objc_getAssociatedObject(sw, kSetterKey);
     if (cb) cb(sw.isOn);
 }
-
-- (void)addSlider:(NSString*)label
-              min:(float)minVal max:(float)maxVal step:(float)step
-           ...
 
     // Use a block callback via objc associated objects
 objc_setAssociatedObject(sw, kSetterKey, setter, OBJC_ASSOCIATION_COPY_NONATOMIC);
