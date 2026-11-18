@@ -19,6 +19,8 @@ PG3DCheat_CFLAGS  += -Wno-error -Wno-unused-variable
 
 PG3DCheat_FRAMEWORKS := UIKit CoreGraphics Foundation
 
+PG3DCheat_LDFLAGS += -Wl,-undefined,dynamic_lookup
+
 # Bundle ID of Pixel Gun 3D — tweak only injects into this process
 PG3DCheat_BUNDLE_ID := com.rilisoft.pixelgun3d
 
