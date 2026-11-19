@@ -15,9 +15,9 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME := PG3DCheat
 
 PG3DCheat_FILES := \
-    Sources/PG3DCheat/Tweak.x
-    Sources/PG3DCheat/PG3DConfig.mm
-    Sources/PG3DCheat/ESPOverlayView.mm
+    Sources/PG3DCheat/Tweak.x \
+    Sources/PG3DCheat/PG3DConfig.mm \
+    Sources/PG3DCheat/ESPOverlayView.mm \
     Sources/PG3DCheat/AimHelper.xm
 
 PG3DCheat_CFLAGS  := -fobjc-arc -I$(THEOS_PROJECT_DIR)/Sources/PG3DCheat
