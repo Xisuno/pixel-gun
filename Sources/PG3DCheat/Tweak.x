@@ -1,6 +1,6 @@
 /*
  * PG3D Cheat — Tweak.x
- * Target  : Pixel Gun 3D (com.rilisoft.pixelgun3d)
+ * Target  : Pixel Gun 3D (zombiegun3d)
  * Build   : arm64 (CORRECTED by mc1h — the installed game binary has no
  *           arm64e slice; `lipo -info` on-device confirmed arm64-only.
  *           Building this tweak as arm64e was why it never injected: dyld
